@@ -1,36 +1,3 @@
--- has_permission(): resuelve overrides por usuario antes que el default del
--- rol (§1.8 de ARCHITECTURE.md). SECURITY DEFINER es necesario porque esta
--- función se invoca desde políticas RLS de otras tablas; si corriera con los
--- privilegios del invocador quedaría sujeta a las políticas RLS de
--- memberships/role_default_permissions/membership_permission_overrides al
--- consultarlas, generando evaluación recursiva.
-CREATE FUNCTION has_permission(uid uuid, target_workspace_id uuid, perm_key text)
-RETURNS boolean
-LANGUAGE sql
-SECURITY DEFINER
-STABLE
-SET search_path = public
-AS $$
-  SELECT COALESCE(
-    (
-      SELECT mpo.granted
-      FROM membership_permission_overrides mpo
-      JOIN memberships m ON m.id = mpo.membership_id
-      WHERE m.user_id = uid
-        AND m.workspace_id = target_workspace_id
-        AND mpo.permission_key = perm_key
-    ),
-    EXISTS (
-      SELECT 1
-      FROM memberships m
-      JOIN role_default_permissions rdp ON rdp.role = m.role
-      WHERE m.user_id = uid
-        AND m.workspace_id = target_workspace_id
-        AND rdp.permission_key = perm_key
-    )
-  );
-$$;
---> statement-breakpoint
 CREATE TABLE "event_handler_log" (
 	"event_id" uuid NOT NULL,
 	"handler_name" text NOT NULL,
@@ -172,6 +139,58 @@ CREATE UNIQUE INDEX "memberships_user_workspace_idx" ON "memberships" USING btre
 CREATE INDEX "notifications_user_created_idx" ON "notifications" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "recently_viewed_user_entity_idx" ON "recently_viewed" USING btree ("user_id","entity_type","entity_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "workspaces_slug_idx" ON "workspaces" USING btree ("slug");--> statement-breakpoint
+-- has_permission()/is_workspace_member(): funciones que no se pueden
+-- expresar con el DSL de Drizzle, agregadas a mano (§1.8/§1.5 de
+-- ARCHITECTURE.md). Van DESPUÉS de todos los CREATE TABLE y ANTES de las
+-- políticas que las usan: Postgres valida al crear una función LANGUAGE sql
+-- que las tablas referenciadas ya existan. Si se regenera esta migración
+-- con `drizzle-kit generate`, hay que volver a pegar este bloque en el
+-- archivo nuevo.
+CREATE FUNCTION has_permission(uid uuid, target_workspace_id uuid, perm_key text)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT COALESCE(
+    (
+      SELECT mpo.granted
+      FROM membership_permission_overrides mpo
+      JOIN memberships m ON m.id = mpo.membership_id
+      WHERE m.user_id = uid
+        AND m.workspace_id = target_workspace_id
+        AND mpo.permission_key = perm_key
+    ),
+    EXISTS (
+      SELECT 1
+      FROM memberships m
+      JOIN role_default_permissions rdp ON rdp.role = m.role
+      WHERE m.user_id = uid
+        AND m.workspace_id = target_workspace_id
+        AND rdp.permission_key = perm_key
+    )
+  );
+$$;
+--> statement-breakpoint
+-- SECURITY DEFINER acá no es solo por privilegio: sin esto, una política de
+-- "memberships" que llama a esta función seguiría dentro del contexto RLS
+-- del invocador y, al consultar memberships internamente, dispararía la
+-- política de memberships de nuevo -> recursión infinita (confirmado
+-- corriendo la migración contra Postgres real durante el desarrollo).
+CREATE FUNCTION is_workspace_member(uid uuid, target_workspace_id uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM memberships m
+    WHERE m.workspace_id = target_workspace_id AND m.user_id = uid
+  );
+$$;
+--> statement-breakpoint
 CREATE POLICY "event_log_select_workspace_member" ON "event_log" AS PERMISSIVE FOR SELECT TO "authenticated" USING (exists (
         select 1 from "memberships"
         where "memberships"."workspace_id" = "event_log"."workspace_id"
@@ -190,10 +209,7 @@ CREATE POLICY "permission_overrides_manage_admin" ON "membership_permission_over
         and m.user_id = (select auth.uid())
         and m.role in ('OWNER', 'ADMIN')
       ));--> statement-breakpoint
-CREATE POLICY "memberships_select_workspace_peers" ON "memberships" AS PERMISSIVE FOR SELECT TO "authenticated" USING (exists (
-        select 1 from memberships m
-        where m.workspace_id = "memberships"."workspace_id" and m.user_id = (select auth.uid())
-      ));--> statement-breakpoint
+CREATE POLICY "memberships_select_workspace_peers" ON "memberships" AS PERMISSIVE FOR SELECT TO "authenticated" USING (is_workspace_member((select auth.uid()), "memberships"."workspace_id"));--> statement-breakpoint
 CREATE POLICY "memberships_manage_admin" ON "memberships" AS PERMISSIVE FOR ALL TO "authenticated" USING (has_permission((select auth.uid()), "memberships"."workspace_id", 'members:invite'));--> statement-breakpoint
 CREATE POLICY "notifications_select_own" ON "notifications" AS PERMISSIVE FOR SELECT TO "authenticated" USING ("notifications"."user_id" = (select auth.uid()));--> statement-breakpoint
 CREATE POLICY "notifications_mark_read_own" ON "notifications" AS PERMISSIVE FOR UPDATE TO "authenticated" USING ("notifications"."user_id" = (select auth.uid()));--> statement-breakpoint

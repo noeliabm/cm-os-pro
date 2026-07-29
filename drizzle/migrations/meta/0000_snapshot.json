@@ -1,5 +1,5 @@
 {
-  "id": "32125ae4-3539-4d0e-bc20-cfe743edfc9e",
+  "id": "804ca8a8-945a-4d69-8ca8-9208de77ffc4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -511,7 +511,7 @@
           "to": [
             "authenticated"
           ],
-          "using": "exists (\n        select 1 from memberships m\n        where m.workspace_id = \"memberships\".\"workspace_id\" and m.user_id = (select auth.uid())\n      )"
+          "using": "is_workspace_member((select auth.uid()), \"memberships\".\"workspace_id\")"
         },
         "memberships_manage_admin": {
           "name": "memberships_manage_admin",

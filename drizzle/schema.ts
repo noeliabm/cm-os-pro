@@ -22,9 +22,13 @@ import { authUsers, authenticatedRole, authUid } from "drizzle-orm/supabase";
  * chequeos de rol/permiso replicados en TypeScript.
  *
  * `has_permission(uid, workspace_id, key)` (usada en varias políticas de
- * abajo) es una función SQL que no se puede expresar con el DSL de
- * Drizzle — vive en drizzle/migrations/0001_has_permission_function.sql
- * como migración manual, versionada junto a las migraciones generadas.
+ * abajo) es una función SQL que no se puede expresar con el DSL de Drizzle
+ * — se agrega a mano dentro de la migración generada (justo antes de las
+ * políticas que la usan, después de todos los CREATE TABLE: Postgres valida
+ * al crear una función LANGUAGE sql que las tablas referenciadas ya
+ * existan). Si se regenera la migración con `drizzle-kit generate` hay que
+ * volver a pegarla en el archivo nuevo — drizzle-kit no sabe de su
+ * existencia porque no tiene DSL para funciones.
  */
 
 // ---------------------------------------------------------------------------
@@ -155,13 +159,12 @@ export const memberships = pgTable(
     pgPolicy("memberships_select_workspace_peers", {
       for: "select",
       to: authenticatedRole,
-      // Auto-join por nombre literal ("memberships m"): referenciar la
-      // propia const desde su callback de políticas reproduce el mismo
-      // ciclo de inferencia que las tablas cruzadas de más arriba.
-      using: sql`exists (
-        select 1 from memberships m
-        where m.workspace_id = ${table.workspaceId} and m.user_id = ${authUid}
-      )`,
+      // is_workspace_member() (SECURITY DEFINER, ver la migración) en vez
+      // de un self-join sobre "memberships": una política de esta tabla
+      // que consulta esta misma tabla dispara de nuevo su propia RLS,
+      // entrando en recursión infinita (confirmado corriendo la migración
+      // contra Postgres real, no es solo una preocupación teórica).
+      using: sql`is_workspace_member(${authUid}, ${table.workspaceId})`,
     }),
     pgPolicy("memberships_manage_admin", {
       for: "all",
