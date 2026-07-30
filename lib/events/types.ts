@@ -24,7 +24,11 @@ export type DomainEvent =
     })
   | (BaseEvent & {
       type: "membership.created";
-      payload: { membershipId: string; userId: string; role: MembershipRole };
+      // email va en el payload (no solo userId) para que describeEvent()
+      // pueda nombrar a quién se agregó sin tener que resolver el join en
+      // cada lugar que renderiza el evento — actorId ya identifica a quién
+      // hizo la invitación, no confundir los dos roles acá.
+      payload: { membershipId: string; userId: string; email: string; role: MembershipRole };
     })
   | (BaseEvent & {
       type: "membership.role_changed";
