@@ -25,6 +25,7 @@ export async function notifyOnMembershipCreated(tx: Db, event: DomainEvent) {
     payload: {
       workspaceName: workspace?.name ?? "un workspace",
       role: event.payload.role,
+      email: event.payload.email,
     },
     entityType: "membership",
     entityId: event.payload.membershipId,

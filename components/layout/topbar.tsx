@@ -20,14 +20,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { signOutAction } from "@/lib/auth/actions";
+import { NotificationBell, type NotificationItem } from "./notification-bell";
 
 const ALL_ITEMS = NAV_SECTIONS.flatMap((s) => s.items);
 
 export function Topbar({
   userEmail,
+  notifications,
+  unreadCount,
   onOpenCommandPalette,
 }: {
   userEmail: string | undefined;
+  notifications: NotificationItem[];
+  unreadCount: number;
   onOpenCommandPalette: () => void;
 }) {
   const pathname = usePathname();
@@ -64,6 +69,8 @@ export function Topbar({
           </TooltipTrigger>
           <TooltipContent>Cambiar tema</TooltipContent>
         </Tooltip>
+
+        <NotificationBell notifications={notifications} unreadCount={unreadCount} />
 
         <DropdownMenu>
           <DropdownMenuTrigger className="rounded-full outline-none">

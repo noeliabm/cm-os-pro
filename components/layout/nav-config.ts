@@ -13,6 +13,7 @@ import {
   MessagesSquare,
   Users,
   BarChart3,
+  History,
   type LucideIcon,
 } from "lucide-react";
 
@@ -61,6 +62,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/copies", label: "Banco de copies", icon: MessagesSquare },
       { href: "/competitors", label: "Competencia", icon: Users },
       { href: "/stats", label: "Estadísticas", icon: BarChart3 },
+      { href: "/activity", label: "Actividad", icon: History },
     ],
   },
 ];
