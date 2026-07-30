@@ -1,5 +1,5 @@
 {
-  "id": "804ca8a8-945a-4d69-8ca8-9208de77ffc4",
+  "id": "b548febe-90d3-4c72-ba86-b3bd59b90eb2",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -61,7 +61,7 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
+      "isRLSEnabled": true
     },
     "public.event_log": {
       "name": "event_log",
@@ -741,9 +741,19 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
+      "policies": {
+        "permissions_select_authenticated": {
+          "name": "permissions_select_authenticated",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "true"
+        }
+      },
       "checkConstraints": {},
-      "isRLSEnabled": false
+      "isRLSEnabled": true
     },
     "public.platform_formats": {
       "name": "platform_formats",
@@ -787,9 +797,19 @@
         }
       },
       "uniqueConstraints": {},
-      "policies": {},
+      "policies": {
+        "platform_formats_select_authenticated": {
+          "name": "platform_formats_select_authenticated",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "true"
+        }
+      },
       "checkConstraints": {},
-      "isRLSEnabled": false
+      "isRLSEnabled": true
     },
     "public.profiles": {
       "name": "profiles",
@@ -1024,9 +1044,19 @@
         }
       },
       "uniqueConstraints": {},
-      "policies": {},
+      "policies": {
+        "role_default_permissions_select_authenticated": {
+          "name": "role_default_permissions_select_authenticated",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "true"
+        }
+      },
       "checkConstraints": {},
-      "isRLSEnabled": false
+      "isRLSEnabled": true
     },
     "public.workspaces": {
       "name": "workspaces",

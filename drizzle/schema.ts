@@ -178,12 +178,28 @@ export const memberships = pgTable(
 // Permisos granulares (§1.8)
 // ---------------------------------------------------------------------------
 
-export const permissions = pgTable("permissions", {
-  key: text("key").primaryKey(), // ej. 'content:publish'
-  label: text("label").notNull(),
-  category: text("category").notNull(),
-});
-// Catálogo global de solo lectura: sin RLS, se sirve como dato estático de la app.
+export const permissions = pgTable(
+  "permissions",
+  {
+    key: text("key").primaryKey(), // ej. 'content:publish'
+    label: text("label").notNull(),
+    category: text("category").notNull(),
+  },
+  () => [
+    // Catálogo global de solo lectura. Originalmente se dejó esta tabla sin
+    // RLS asumiendo que "nadie tiene motivo para escribirla" alcanzaba como
+    // protección — el editor SQL de Supabase marcó el error real: sin RLS,
+    // los GRANT por default de Supabase sobre el schema public dejan a
+    // `authenticated` con permiso de escritura, no solo lectura. Con RLS
+    // habilitado y una única política de SELECT, un usuario autenticado
+    // podría alterar la matriz de permisos de la que depende has_permission().
+    pgPolicy("permissions_select_authenticated", {
+      for: "select",
+      to: authenticatedRole,
+      using: sql`true`,
+    }),
+  ],
+).enableRLS();
 
 export const roleDefaultPermissions = pgTable(
   "role_default_permissions",
@@ -193,9 +209,18 @@ export const roleDefaultPermissions = pgTable(
       .notNull()
       .references(() => permissions.key, { onDelete: "cascade" }),
   },
-  (table) => [primaryKey({ columns: [table.role, table.permissionKey] })],
-);
-// Matriz semilla global, también de solo lectura para todos los autenticados.
+  (table) => [
+    primaryKey({ columns: [table.role, table.permissionKey] }),
+    // Mismo motivo que permissions: solo lectura para authenticated, sin
+    // política de escritura — es la matriz que has_permission() consulta
+    // para resolver defaults de rol.
+    pgPolicy("role_default_permissions_select_authenticated", {
+      for: "select",
+      to: authenticatedRole,
+      using: sql`true`,
+    }),
+  ],
+).enableRLS();
 
 export const membershipPermissionOverrides = pgTable(
   "membership_permission_overrides",
@@ -296,8 +321,10 @@ export const eventHandlerLog = pgTable(
     error: text("error"),
   },
   (table) => [primaryKey({ columns: [table.eventId, table.handlerName] })],
-);
-// Sin RLS: solo lo toca el dispatcher en background vía service role.
+).enableRLS();
+// RLS habilitado SIN ninguna política: bloquea el acceso a `authenticated`
+// y `anon` por completo. Solo `service_role` (bypassa RLS) — el dispatcher
+// en background — puede leer o escribir acá. Nadie más tiene motivo.
 
 // ---------------------------------------------------------------------------
 // Notifications
@@ -417,6 +444,13 @@ export const platformFormats = pgTable(
     label: text("label").notNull(),
     rules: jsonb("rules").notNull().default({}),
   },
-  (table) => [primaryKey({ columns: [table.platform, table.formatKey] })],
-);
+  (table) => [
+    primaryKey({ columns: [table.platform, table.formatKey] }),
+    pgPolicy("platform_formats_select_authenticated", {
+      for: "select",
+      to: authenticatedRole,
+      using: sql`true`,
+    }),
+  ],
+).enableRLS();
 // Catálogo global de solo lectura, poblado por cada plugin en su seed.

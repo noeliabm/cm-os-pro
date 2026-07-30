@@ -6,6 +6,7 @@ CREATE TABLE "event_handler_log" (
 	CONSTRAINT "event_handler_log_event_id_handler_name_pk" PRIMARY KEY("event_id","handler_name")
 );
 --> statement-breakpoint
+ALTER TABLE "event_handler_log" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "event_log" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
@@ -73,6 +74,7 @@ CREATE TABLE "permissions" (
 	"category" text NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "permissions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "platform_formats" (
 	"platform" text NOT NULL,
 	"format_key" text NOT NULL,
@@ -81,6 +83,7 @@ CREATE TABLE "platform_formats" (
 	CONSTRAINT "platform_formats_platform_format_key_pk" PRIMARY KEY("platform","format_key")
 );
 --> statement-breakpoint
+ALTER TABLE "platform_formats" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "profiles" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"name" text,
@@ -105,6 +108,7 @@ CREATE TABLE "role_default_permissions" (
 	CONSTRAINT "role_default_permissions_role_permission_key_pk" PRIMARY KEY("role","permission_key")
 );
 --> statement-breakpoint
+ALTER TABLE "role_default_permissions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "workspaces" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" uuid NOT NULL,
@@ -219,6 +223,8 @@ CREATE POLICY "organizations_select_member" ON "organizations" AS PERMISSIVE FOR
         where workspaces.organization_id = "organizations"."id"
         and memberships.user_id = (select auth.uid())
       ));--> statement-breakpoint
+CREATE POLICY "permissions_select_authenticated" ON "permissions" AS PERMISSIVE FOR SELECT TO "authenticated" USING (true);--> statement-breakpoint
+CREATE POLICY "platform_formats_select_authenticated" ON "platform_formats" AS PERMISSIVE FOR SELECT TO "authenticated" USING (true);--> statement-breakpoint
 CREATE POLICY "profiles_select_workspace_peers" ON "profiles" AS PERMISSIVE FOR SELECT TO "authenticated" USING ("profiles"."id" = (select auth.uid()) or exists (
         select 1 from memberships m1
         join memberships m2 on m1.workspace_id = m2.workspace_id
@@ -226,6 +232,7 @@ CREATE POLICY "profiles_select_workspace_peers" ON "profiles" AS PERMISSIVE FOR 
       ));--> statement-breakpoint
 CREATE POLICY "profiles_update_self" ON "profiles" AS PERMISSIVE FOR UPDATE TO "authenticated" USING ("profiles"."id" = (select auth.uid()));--> statement-breakpoint
 CREATE POLICY "recently_viewed_manage_own" ON "recently_viewed" AS PERMISSIVE FOR ALL TO "authenticated" USING ("recently_viewed"."user_id" = (select auth.uid())) WITH CHECK ("recently_viewed"."user_id" = (select auth.uid()));--> statement-breakpoint
+CREATE POLICY "role_default_permissions_select_authenticated" ON "role_default_permissions" AS PERMISSIVE FOR SELECT TO "authenticated" USING (true);--> statement-breakpoint
 CREATE POLICY "workspaces_select_member" ON "workspaces" AS PERMISSIVE FOR SELECT TO "authenticated" USING (exists (
         select 1 from memberships
         where memberships.workspace_id = "workspaces"."id"
